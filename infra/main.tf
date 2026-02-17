@@ -139,6 +139,28 @@ resource "aws_iam_role" "lambda_role" {
       }]
     })
   }
+
+  inline_policy {
+    name = "sqs-access"
+    policy = jsonencode({
+      Version = "2012-10-17"
+      Statement = [{
+        Effect = "Allow"
+        Action = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:SendMessage"
+        ]
+        Resource = [aws_sqs_queue.ingest_queue.arn]
+      }]
+    })
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # --- Lambda Functions ---
@@ -191,6 +213,16 @@ resource "aws_lambda_event_source_mapping" "ingest_trigger" {
   event_source_arn = aws_sqs_queue.ingest_queue.arn
   function_name    = aws_lambda_function.ingestor.arn
   batch_size       = 1
+}
+
+# --- Lambda Permissions ---
+
+resource "aws_lambda_permission" "api_gateway_invoke" {
+  statement_id  = "AllowAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.api.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
 }
 
 # --- API Gateway v2 (HTTP API) ---
