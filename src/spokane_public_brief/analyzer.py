@@ -4,12 +4,16 @@ Replaces direct Anthropic API with Bedrock Runtime.
 """
 
 import json
+import logging
 import os
 from typing import Any
 
 import boto3
+from botocore.exceptions import ClientError, BotoCoreError
 
 from spokane_public_brief.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Topics for classification
 TOPICS = [
@@ -17,6 +21,11 @@ TOPICS = [
     "parks", "environment", "public_safety", "infrastructure",
     "development", "permits", "other",
 ]
+
+
+class AnalyzerError(Exception):
+    """Raised when Bedrock analysis fails."""
+    pass
 
 
 def _get_bedrock_client():
@@ -29,8 +38,6 @@ def analyze_document(text: str, doc_type: str = "agenda") -> dict[str, Any]:
 
     Uses the Bedrock Messages API (Claude 3.5 Sonnet on Bedrock).
     """
-    client = _get_bedrock_client()
-
     prompt = f"""You are analyzing a Spokane City Council {doc_type} for citizens who want to stay informed.
 
 Extract DETAILED, SPECIFIC information for each significant agenda item.
@@ -63,18 +70,26 @@ Document text:
         "messages": [{"role": "user", "content": prompt}],
     })
 
-    # Use Claude 3.5 Sonnet on Bedrock
     model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 
-    response = client.invoke_model(
-        modelId=model_id,
-        body=body,
-        contentType="application/json",
-        accept="application/json",
-    )
+    try:
+        client = _get_bedrock_client()
+        response = client.invoke_model(
+            modelId=model_id,
+            body=body,
+            contentType="application/json",
+            accept="application/json",
+        )
+    except (ClientError, BotoCoreError) as e:
+        logger.error("Bedrock invocation failed: %s", e)
+        raise AnalyzerError(f"Bedrock API call failed: {e}") from e
 
-    result_body = json.loads(response["body"].read())
-    response_text = result_body["content"][0]["text"]
+    try:
+        result_body = json.loads(response["body"].read())
+        response_text = result_body["content"][0]["text"]
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        logger.error("Failed to parse Bedrock response: %s", e)
+        raise AnalyzerError(f"Unexpected Bedrock response format: {e}") from e
 
     # Parse JSON from response
     try:
@@ -83,5 +98,9 @@ Document text:
         start = response_text.find("{")
         end = response_text.rfind("}") + 1
         if start >= 0 and end > start:
-            return json.loads(response_text[start:end])
-        return {"error": "Failed to parse response", "raw": response_text}
+            try:
+                return json.loads(response_text[start:end])
+            except json.JSONDecodeError:
+                pass
+        logger.warning("Could not parse analysis JSON, returning raw text")
+        return {"error": "Failed to parse response", "raw": response_text[:500]}

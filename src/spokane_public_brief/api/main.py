@@ -3,17 +3,22 @@
 All data from DynamoDB. No file-based caches, no local state.
 """
 
-from fastapi import FastAPI, Query
+import logging
+
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from spokane_public_brief.config import settings
 from spokane_public_brief.models.dynamodb import (
+    DynamoDBError,
     list_meetings,
     get_meeting,
     get_agenda_items_for_meeting,
     scan_all_agenda_items,
 )
 from spokane_public_brief import search as item_search
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Spokane Public Brief",
@@ -45,7 +50,11 @@ def health():
 @app.get("/api/meetings")
 def api_meetings(body: str = Query(default=None), limit: int = Query(default=50, le=200)):
     """List meetings, optionally filtered by body name."""
-    meetings = list_meetings(body_name=body, limit=limit)
+    try:
+        meetings = list_meetings(body_name=body, limit=limit)
+    except DynamoDBError as e:
+        logger.error("Failed to list meetings: %s", e)
+        raise HTTPException(status_code=502, detail="Failed to retrieve meetings from database")
     return {
         "count": len(meetings),
         "meetings": meetings,
@@ -55,11 +64,21 @@ def api_meetings(body: str = Query(default=None), limit: int = Query(default=50,
 @app.get("/api/meetings/{meeting_id}")
 def api_meeting_detail(meeting_id: str):
     """Get a meeting with its agenda items."""
-    meeting = get_meeting(meeting_id)
-    if not meeting:
-        return {"error": "Meeting not found"}
+    try:
+        meeting = get_meeting(meeting_id)
+    except DynamoDBError as e:
+        logger.error("Failed to get meeting %s: %s", meeting_id, e)
+        raise HTTPException(status_code=502, detail="Failed to retrieve meeting from database")
 
-    items = get_agenda_items_for_meeting(meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    try:
+        items = get_agenda_items_for_meeting(meeting_id)
+    except DynamoDBError as e:
+        logger.error("Failed to get agenda items for %s: %s", meeting_id, e)
+        raise HTTPException(status_code=502, detail="Failed to retrieve agenda items from database")
+
     return {
         "meeting": meeting,
         "items": items,
@@ -73,7 +92,11 @@ def api_items(
     limit: int = Query(default=50, le=200),
 ):
     """List agenda items with optional filters."""
-    items = scan_all_agenda_items(limit=500)
+    try:
+        items = scan_all_agenda_items(limit=500)
+    except DynamoDBError as e:
+        logger.error("Failed to scan agenda items: %s", e)
+        raise HTTPException(status_code=502, detail="Failed to retrieve items from database")
 
     # Filter
     if topic:
@@ -96,8 +119,15 @@ def api_search(q: str = Query(...), limit: int = Query(default=10, le=50)):
     if not q:
         return {"error": "Query required", "results": []}
 
-    results = item_search.search(q, top_k=limit, min_score=0.1)
-    stats = item_search.get_stats()
+    try:
+        results = item_search.search(q, top_k=limit, min_score=0.1)
+        stats = item_search.get_stats()
+    except DynamoDBError as e:
+        logger.error("Search failed (DynamoDB): %s", e)
+        raise HTTPException(status_code=502, detail="Search backend unavailable")
+    except Exception as e:
+        logger.error("Search failed: %s", e)
+        raise HTTPException(status_code=500, detail="Search failed")
 
     return {
         "query": q,
@@ -110,8 +140,12 @@ def api_search(q: str = Query(...), limit: int = Query(default=10, le=50)):
 @app.get("/api/stats")
 def api_stats():
     """Dashboard stats."""
-    items = scan_all_agenda_items(limit=1000)
-    meetings = list_meetings(limit=500)
+    try:
+        items = scan_all_agenda_items(limit=1000)
+        meetings = list_meetings(limit=500)
+    except DynamoDBError as e:
+        logger.error("Failed to get stats: %s", e)
+        raise HTTPException(status_code=502, detail="Failed to retrieve stats from database")
 
     high_relevance = [i for i in items if int(i.get("relevance", 1)) >= 4]
     topics = set(i.get("topic") for i in items if i.get("topic"))
