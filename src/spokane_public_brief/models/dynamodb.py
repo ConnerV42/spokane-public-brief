@@ -28,9 +28,8 @@ class DynamoDBError(Exception):
 
 
 def _get_table(table_name: str):
-    """Get a DynamoDB table resource."""
-    dynamodb = boto3.resource("dynamodb", region_name=settings.aws_region)
-    return dynamodb.Table(table_name)
+    """Get a DynamoDB table resource (supports DYNAMODB_ENDPOINT for local dev)."""
+    return settings.get_dynamodb_table(table_name)
 
 
 # --- Meetings ---

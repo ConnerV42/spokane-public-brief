@@ -2,11 +2,7 @@
 port: 8080
 
 environment:
-  STAGE: "local"
-  AWS_REGION: "us-west-2"
-  MEETINGS_TABLE: "spokane-public-brief-meetings-local"
-  AGENDA_TABLE: "spokane-public-brief-agenda-items-local"
-  DOCUMENTS_TABLE: "spokane-public-brief-documents-local"
+  DYNAMODB_ENDPOINT: "http://localhost:8001"
   PYTHONPATH: "../src"
 
 functions:

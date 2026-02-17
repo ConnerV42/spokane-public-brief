@@ -1,7 +1,9 @@
-*.pyc\n__pycache__/\n.pytest_cache/\n*.egg-info/\ndist/\nbuild/\n.venv/
 __pycache__/
 *.pyc
 .venv/
 *.egg-info/
 dist/
+build/
 .pytest_cache/
+dynamodb-local/
+infra/.lambdaform/

@@ -2,6 +2,8 @@
 
 import os
 
+import boto3
+
 
 class Settings:
     """Settings from environment variables (Lambda-friendly, no .env files)."""
@@ -31,12 +33,31 @@ class Settings:
         return os.environ.get("AWS_REGION", "us-west-2")
 
     @property
+    def dynamodb_endpoint(self) -> str | None:
+        """DynamoDB endpoint URL override for local development."""
+        return os.environ.get("DYNAMODB_ENDPOINT")
+
+    @property
     def legistar_base_url(self) -> str:
         return "https://webapi.legistar.com/v1/spokane"
 
     @property
     def debug(self) -> bool:
         return os.environ.get("DEBUG", "false").lower() == "true"
+
+    def get_dynamodb_resource(self):
+        """Get a DynamoDB resource with proper endpoint configuration."""
+        kwargs = {"region_name": self.aws_region}
+        if self.dynamodb_endpoint:
+            kwargs["endpoint_url"] = self.dynamodb_endpoint
+            # For local development, use dummy credentials
+            kwargs["aws_access_key_id"] = "local"
+            kwargs["aws_secret_access_key"] = "local"
+        return boto3.resource("dynamodb", **kwargs)
+
+    def get_dynamodb_table(self, table_name: str):
+        """Get a DynamoDB table with proper endpoint configuration."""
+        return self.get_dynamodb_resource().Table(table_name)
 
 
 settings = Settings()
