@@ -17,3 +17,7 @@ functions:
   spokane-public-brief-ingestor-dev:
     handler: "../ingestor_handler.handler"
     source_path: "../"
+
+  spokane-public-brief-analyzer-dev:
+    handler: "../analyzer_handler.handler"
+    source_path: "../"

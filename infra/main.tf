@@ -96,6 +96,12 @@ resource "aws_sqs_queue" "ingest_queue" {
   message_retention_seconds  = 86400
 }
 
+resource "aws_sqs_queue" "analysis_queue" {
+  name                       = "spokane-public-brief-analysis-${var.stage}"
+  visibility_timeout_seconds = 600
+  message_retention_seconds  = 86400
+}
+
 # --- IAM Role for Lambdas ---
 
 resource "aws_iam_role" "lambda_role" {
@@ -152,7 +158,10 @@ resource "aws_iam_role" "lambda_role" {
           "sqs:GetQueueAttributes",
           "sqs:SendMessage"
         ]
-        Resource = [aws_sqs_queue.ingest_queue.arn]
+        Resource = [
+          aws_sqs_queue.ingest_queue.arn,
+          aws_sqs_queue.analysis_queue.arn,
+        ]
       }]
     })
   }
@@ -198,16 +207,44 @@ resource "aws_lambda_function" "ingestor" {
 
   environment {
     variables = {
-      STAGE          = var.stage
-      MEETINGS_TABLE = aws_dynamodb_table.meetings.name
-      AGENDA_TABLE   = aws_dynamodb_table.agenda_items.name
-      DOCUMENTS_TABLE = aws_dynamodb_table.documents.name
-      INGEST_QUEUE_URL = aws_sqs_queue.ingest_queue.id
+      STAGE              = var.stage
+      MEETINGS_TABLE     = aws_dynamodb_table.meetings.name
+      AGENDA_TABLE       = aws_dynamodb_table.agenda_items.name
+      DOCUMENTS_TABLE    = aws_dynamodb_table.documents.name
+      INGEST_QUEUE_URL   = aws_sqs_queue.ingest_queue.id
+      ANALYSIS_QUEUE_URL = aws_sqs_queue.analysis_queue.id
     }
   }
 }
 
-# --- SQS -> Lambda trigger ---
+resource "aws_lambda_function" "analyzer" {
+  function_name = "spokane-public-brief-analyzer-${var.stage}"
+  runtime       = "python3.12"
+  handler       = "analyzer_handler.handler"
+  role          = aws_iam_role.lambda_role.arn
+  timeout       = 600
+  memory_size   = 512
+
+  filename = "../dist/analyzer.zip"
+
+  environment {
+    variables = {
+      STAGE            = var.stage
+      BEDROCK_MODEL_ID = var.bedrock_model_id
+      MEETINGS_TABLE   = aws_dynamodb_table.meetings.name
+      AGENDA_TABLE     = aws_dynamodb_table.agenda_items.name
+      DOCUMENTS_TABLE  = aws_dynamodb_table.documents.name
+    }
+  }
+}
+
+# --- SQS -> Lambda triggers ---
+
+resource "aws_lambda_event_source_mapping" "analysis_trigger" {
+  event_source_arn = aws_sqs_queue.analysis_queue.arn
+  function_name    = aws_lambda_function.analyzer.arn
+  batch_size       = 1
+}
 
 resource "aws_lambda_event_source_mapping" "ingest_trigger" {
   event_source_arn = aws_sqs_queue.ingest_queue.arn

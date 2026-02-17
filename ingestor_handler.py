@@ -1,10 +1,13 @@
-"""Lambda handler for Legistar ingestion (SQS-triggered or scheduled).
+"""Lambda handler for Legistar ingestion (EventBridge-scheduled or SQS-triggered).
 
-Fetches meetings from Legistar, stores in DynamoDB, optionally analyzes with Bedrock.
+Fetches meetings from Legistar, stores in DynamoDB, queues analysis jobs to SQS.
+Analysis is handled by the separate analyzer Lambda.
 """
 
 import json
 import os
+
+import boto3
 
 from spokane_public_brief.ingestors.legistar import LegistarClient, fetch_upcoming_meetings
 from spokane_public_brief.models.dynamodb import (
@@ -14,8 +17,31 @@ from spokane_public_brief.models.dynamodb import (
 )
 
 
+def _get_sqs_client():
+    """Get SQS client."""
+    return boto3.client("sqs", region_name=os.environ.get("AWS_REGION", "us-west-2"))
+
+
+def _queue_analysis(meeting_id: str):
+    """Queue a meeting for analysis by the analyzer Lambda."""
+    queue_url = os.environ.get("ANALYSIS_QUEUE_URL")
+    if not queue_url:
+        print(f"ANALYSIS_QUEUE_URL not set, skipping analysis for {meeting_id}")
+        return
+
+    sqs = _get_sqs_client()
+    sqs.send_message(
+        QueueUrl=queue_url,
+        MessageBody=json.dumps({
+            "action": "analyze_meeting",
+            "meeting_id": meeting_id,
+        }),
+    )
+    print(f"Queued analysis job for meeting {meeting_id}")
+
+
 def handler(event, context):
-    """Handle SQS or scheduled ingestion triggers."""
+    """Handle scheduled or SQS ingestion triggers."""
     if "Records" in event:
         # SQS trigger — process specific items
         for record in event["Records"]:
@@ -23,19 +49,15 @@ def handler(event, context):
             action = body.get("action", "ingest_meetings")
             if action == "ingest_meetings":
                 _ingest_meetings()
-            elif action == "analyze_meeting":
-                meeting_id = body.get("meeting_id")
-                if meeting_id:
-                    _analyze_meeting(meeting_id)
     else:
-        # Scheduled trigger — full ingest
+        # Scheduled trigger (EventBridge) — full ingest
         _ingest_meetings()
 
     return {"statusCode": 200, "body": json.dumps({"message": "Ingest complete"})}
 
 
 def _ingest_meetings():
-    """Fetch and store upcoming meetings from Legistar."""
+    """Fetch and store upcoming meetings from Legistar, then queue for analysis."""
     meetings = fetch_upcoming_meetings()
     print(f"Fetched {len(meetings)} upcoming meetings from Legistar")
 
@@ -62,33 +84,11 @@ def _ingest_meetings():
                     "meeting_date": meeting.get("meeting_date", ""),
                 })
             stored += 1
+
+            # Queue this meeting for AI analysis
+            _queue_analysis(meeting_id)
+
         except Exception as e:
             print(f"Error fetching items for event {event_id}: {e}")
 
-    print(f"Stored {stored} meetings with agenda items")
-
-
-def _analyze_meeting(meeting_id: str):
-    """Analyze a meeting's agenda items with Bedrock."""
-    from spokane_public_brief.analyzer import analyze_document
-
-    items = get_agenda_items_for_meeting(meeting_id)
-    if not items:
-        print(f"No items found for meeting {meeting_id}")
-        return
-
-    # Build text from items
-    text = "\n\n".join(
-        f"Item: {item.get('title', '')}\n{item.get('summary', '')}"
-        for item in items
-    )
-
-    result = analyze_document(text, doc_type="agenda")
-    print(f"Analyzed meeting {meeting_id}: {len(result.get('items', []))} items")
-
-    # Update items with analysis
-    for analyzed in result.get("items", []):
-        put_agenda_item({
-            "meeting_id": meeting_id,
-            **analyzed,
-        })
+    print(f"Stored {stored} meetings with agenda items, queued for analysis")
