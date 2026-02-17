@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  /* Civic color palette */
+  --color-civic-900: #0c1929;
+  --color-civic-800: #122640;
+  --color-civic-700: #1a3a5c;
+  --color-civic-600: #234e7a;
+  --color-civic-500: #2d6399;
+  --color-civic-400: #4a8ec4;
+  --color-civic-300: #7bb3db;
+  --color-civic-200: #b3d5ed;
+  --color-civic-100: #dcedf8;
+  --color-civic-50: #f0f7fc;
+
+  --color-accent-500: #d97706;
+  --color-accent-400: #f59e0b;
+
+  --color-surface: #ffffff;
+  --color-surface-dim: #f8fafc;
+  --color-surface-bright: #ffffff;
+  --color-border: #e2e8f0;
+  --color-text: #0f172a;
+  --color-text-muted: #64748b;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background: var(--color-surface-dim);
+}

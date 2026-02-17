@@ -1,0 +1,61 @@
+const BASE = '/api';
+
+async function fetchJSON<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
+  return res.json();
+}
+
+export interface Meeting {
+  meeting_id: string;
+  title: string;
+  date: string;
+  body_name: string;
+  status: string;
+  ai_summary?: string;
+  topics?: string[];
+  agenda_item_count?: number;
+}
+
+export interface AgendaItem {
+  item_id: string;
+  meeting_id: string;
+  title: string;
+  description?: string;
+  impact_level?: 'high' | 'medium' | 'low';
+  ai_analysis?: string;
+  topics?: string[];
+}
+
+export interface Document {
+  document_id: string;
+  meeting_id: string;
+  title: string;
+  url: string;
+  doc_type: string;
+}
+
+export interface SearchResult {
+  item_id: string;
+  title: string;
+  description?: string;
+  score: number;
+  meeting_id: string;
+}
+
+export interface Stats {
+  total_meetings: number;
+  total_items: number;
+  high_impact_count: number;
+  recent_topics: string[];
+}
+
+export const api = {
+  health: () => fetchJSON<{ status: string }>('/health'),
+  meetings: () => fetchJSON<Meeting[]>('/meetings'),
+  meeting: (id: string) => fetchJSON<Meeting>(`/meetings/${id}`),
+  meetingItems: (id: string) => fetchJSON<AgendaItem[]>(`/meetings/${id}/items`),
+  meetingDocuments: (id: string) => fetchJSON<Document[]>(`/meetings/${id}/documents`),
+  search: (q: string) => fetchJSON<SearchResult[]>(`/search?q=${encodeURIComponent(q)}`),
+  stats: () => fetchJSON<Stats>('/stats'),
+};
