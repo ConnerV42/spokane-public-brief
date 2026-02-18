@@ -39,8 +39,19 @@ export interface SearchResult {
   item_id: string;
   title: string;
   description?: string;
-  score: number;
+  search_score: number;
   meeting_id: string;
+  impact_level?: 'high' | 'medium' | 'low';
+  ai_analysis?: string;
+  topics?: string[];
+  relevance?: number;
+}
+
+export interface SearchResponse {
+  query: string;
+  count: number;
+  total_indexed: number;
+  results: SearchResult[];
 }
 
 export interface Stats {
@@ -65,6 +76,9 @@ export const api = {
     fetchJSON<ItemsResponse>(
       `/items?min_relevance=${opts?.minRelevance ?? 1}&limit=${opts?.limit ?? 50}`
     ),
-  search: (q: string) => fetchJSON<SearchResult[]>(`/search?q=${encodeURIComponent(q)}`),
+  search: (q: string, limit?: number) =>
+    fetchJSON<SearchResponse>(
+      `/search?q=${encodeURIComponent(q)}&limit=${limit ?? 20}`
+    ),
   stats: () => fetchJSON<Stats>('/stats'),
 };
