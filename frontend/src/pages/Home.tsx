@@ -279,18 +279,18 @@ export default function Home() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-          <StatCard icon="📋" label="Meetings" value={stats.total_meetings} />
-          <StatCard icon="📌" label="Agenda Items" value={stats.total_items} />
-          <StatCard icon="⚡" label="High Impact" value={stats.high_impact_count} />
-          <StatCard icon="🏷️" label="Topics" value={stats.recent_topics.length} />
+          <StatCard icon="📋" label="Meetings" value={stats.meetings} />
+          <StatCard icon="📌" label="Agenda Items" value={stats.agenda_items} />
+          <StatCard icon="⚡" label="High Impact" value={stats.high_relevance} />
+          <StatCard icon="🏷️" label="Topics" value={stats.topics.length} />
         </div>
       )}
 
       {/* Trending Topics */}
-      {stats && stats.recent_topics.length > 0 && (
+      {stats && stats.topics.length > 0 && (
         <div>
           <SectionHeader title="Trending Topics" />
-          <TopicPills topics={stats.recent_topics} />
+          <TopicPills topics={stats.topics} />
         </div>
       )}
 

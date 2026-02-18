@@ -23,6 +23,8 @@ export interface AgendaItem {
   title: string;
   description?: string;
   impact_level?: 'high' | 'medium' | 'low';
+  relevance?: number;
+  topic?: string;
   ai_analysis?: string;
   topics?: string[];
 }
@@ -55,10 +57,10 @@ export interface SearchResponse {
 }
 
 export interface Stats {
-  total_meetings: number;
-  total_items: number;
-  high_impact_count: number;
-  recent_topics: string[];
+  meetings: number;
+  agenda_items: number;
+  high_relevance: number;
+  topics: string[];
 }
 
 export interface ItemsResponse {
@@ -66,12 +68,17 @@ export interface ItemsResponse {
   items: AgendaItem[];
 }
 
+/** Meeting detail response — meeting + items bundled */
+export interface MeetingDetailResponse {
+  meeting: Meeting;
+  items: AgendaItem[];
+}
+
 export const api = {
   health: () => fetchJSON<{ status: string }>('/health'),
-  meetings: () => fetchJSON<Meeting[]>('/meetings'),
-  meeting: (id: string) => fetchJSON<Meeting>(`/meetings/${id}`),
-  meetingItems: (id: string) => fetchJSON<AgendaItem[]>(`/meetings/${id}/items`),
-  meetingDocuments: (id: string) => fetchJSON<Document[]>(`/meetings/${id}/documents`),
+  meetings: () =>
+    fetchJSON<{ count: number; meetings: Meeting[] }>('/meetings').then((r) => r.meetings),
+  meetingDetail: (id: string) => fetchJSON<MeetingDetailResponse>(`/meetings/${id}`),
   items: (opts?: { minRelevance?: number; limit?: number }) =>
     fetchJSON<ItemsResponse>(
       `/items?min_relevance=${opts?.minRelevance ?? 1}&limit=${opts?.limit ?? 50}`

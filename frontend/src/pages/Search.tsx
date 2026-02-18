@@ -134,7 +134,7 @@ export default function Search() {
 
   // Fetch trending topics for suggestions
   useEffect(() => {
-    api.stats().then((s) => setTrendingTopics(s.recent_topics)).catch(() => {});
+    api.stats().then((s) => setTrendingTopics(s.topics)).catch(() => {});
   }, []);
 
   // Run search when query changes

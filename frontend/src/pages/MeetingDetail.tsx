@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router';
-import { api, type Meeting, type AgendaItem, type Document } from '../api/client';
+import { api, type Meeting, type AgendaItem } from '../api/client';
 
 /* ── Impact Badge ──────────────────────────────────────── */
 
@@ -37,20 +37,6 @@ function StatusBadge({ status }: { status: string }) {
       {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   );
-}
-
-/* ── Document Type Icon ────────────────────────────────── */
-
-function DocIcon({ type }: { type: string }) {
-  const icons: Record<string, string> = {
-    minutes: '📝',
-    agenda: '📋',
-    attachment: '📎',
-    report: '📊',
-    ordinance: '⚖️',
-    resolution: '🏛️',
-  };
-  return <span className="text-xl">{icons[type.toLowerCase()] ?? '📄'}</span>;
 }
 
 /* ── Loading Skeleton ──────────────────────────────────── */
@@ -93,7 +79,6 @@ export default function MeetingDetail() {
   const { id } = useParams<{ id: string }>();
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [items, setItems] = useState<AgendaItem[]>([]);
-  const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -101,11 +86,10 @@ export default function MeetingDetail() {
     if (!id) return;
     setLoading(true);
     setError(null);
-    Promise.all([api.meeting(id), api.meetingItems(id), api.meetingDocuments(id)])
-      .then(([m, i, d]) => {
-        setMeeting(m);
-        setItems(i);
-        setDocs(d);
+    api.meetingDetail(id)
+      .then((res) => {
+        setMeeting(res.meeting);
+        setItems(res.items);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -245,13 +229,7 @@ export default function MeetingDetail() {
               <span className="font-bold text-amber-800">{medCount}</span>
             </div>
           )}
-          {docs.length > 0 && (
-            <div className="flex items-center gap-2 bg-surface border border-border rounded-lg px-4 py-2.5">
-              <span className="text-lg">📄</span>
-              <span className="text-text-muted">Documents</span>
-              <span className="font-bold text-civic-700">{docs.length}</span>
-            </div>
-          )}
+          {/* Documents stat removed — no documents endpoint */}
         </div>
       )}
 
@@ -314,34 +292,7 @@ export default function MeetingDetail() {
         )}
       </div>
 
-      {/* Documents */}
-      {docs.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold text-civic-800 mb-4">Source Documents</h2>
-          <div className="grid md:grid-cols-2 gap-3">
-            {docs.map((d) => (
-              <a
-                key={d.document_id}
-                href={d.url}
-                target="_blank"
-                rel="noopener"
-                className="flex items-center gap-3 bg-surface border border-border rounded-xl p-4 shadow-sm hover:shadow-md hover:border-civic-300 transition-all group"
-              >
-                <DocIcon type={d.doc_type} />
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium text-civic-700 group-hover:text-civic-600 transition-colors truncate">
-                    {d.title}
-                  </p>
-                  <p className="text-xs text-text-muted capitalize">{d.doc_type}</p>
-                </div>
-                <span className="text-text-muted text-xs shrink-0 group-hover:translate-x-0.5 transition-transform">
-                  ↗
-                </span>
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Documents section — future: add /api/meetings/:id/documents endpoint */}
     </div>
   );
 }
