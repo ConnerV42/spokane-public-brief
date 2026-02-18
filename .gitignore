@@ -7,3 +7,10 @@ build/
 .pytest_cache/
 dynamodb-local/
 infra/.lambdaform/
+infra/.terraform/
+infra/.terraform.lock.hcl
+infra/terraform.tfstate
+infra/terraform.tfstate.backup
+infra/deploy.plan
+infra/tfplan
+.build/

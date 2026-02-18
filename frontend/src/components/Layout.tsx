@@ -11,13 +11,19 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-civic-800 focus:text-white focus:px-4 focus:py-2 focus:rounded"
+      >
+        Skip to content
+      </a>
       <header className="bg-civic-800 text-white shadow-md">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <span className="text-2xl">🏛️</span>
             <span className="font-bold text-lg tracking-tight">Spokane Public Brief</span>
           </Link>
-          <nav className="flex gap-6 text-sm font-medium">
+          <nav aria-label="Main navigation" className="flex gap-6 text-sm font-medium">
             {navItems.map((item) => (
               <Link
                 key={item.to}
@@ -33,7 +39,7 @@ export default function Layout() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl mx-auto px-4 py-8 w-full">
+      <main id="main-content" className="flex-1 max-w-6xl mx-auto px-4 py-8 w-full">
         <Outlet />
       </main>
 
