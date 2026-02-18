@@ -50,12 +50,21 @@ export interface Stats {
   recent_topics: string[];
 }
 
+export interface ItemsResponse {
+  count: number;
+  items: AgendaItem[];
+}
+
 export const api = {
   health: () => fetchJSON<{ status: string }>('/health'),
   meetings: () => fetchJSON<Meeting[]>('/meetings'),
   meeting: (id: string) => fetchJSON<Meeting>(`/meetings/${id}`),
   meetingItems: (id: string) => fetchJSON<AgendaItem[]>(`/meetings/${id}/items`),
   meetingDocuments: (id: string) => fetchJSON<Document[]>(`/meetings/${id}/documents`),
+  items: (opts?: { minRelevance?: number; limit?: number }) =>
+    fetchJSON<ItemsResponse>(
+      `/items?min_relevance=${opts?.minRelevance ?? 1}&limit=${opts?.limit ?? 50}`
+    ),
   search: (q: string) => fetchJSON<SearchResult[]>(`/search?q=${encodeURIComponent(q)}`),
   stats: () => fetchJSON<Stats>('/stats'),
 };
