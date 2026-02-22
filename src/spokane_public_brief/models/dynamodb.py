@@ -41,6 +41,7 @@ def put_meeting(meeting: dict) -> str:
 
     item = {
         "meeting_id": meeting_id,
+        "_type": "meeting",
         "body_name": meeting.get("body_name", "City Council"),
         "meeting_date": meeting.get("meeting_date", ""),
         "title": meeting.get("title", ""),
@@ -86,7 +87,12 @@ def list_meetings(body_name: Optional[str] = None, limit: int = 50) -> list[dict
                 Limit=limit,
             )
         else:
-            resp = table.scan(Limit=limit)
+            resp = table.query(
+                IndexName="type-date-index",
+                KeyConditionExpression=Key("_type").eq("meeting"),
+                ScanIndexForward=False,
+                Limit=limit,
+            )
 
         return resp.get("Items", [])
     except (ClientError, BotoCoreError) as e:
@@ -103,6 +109,7 @@ def put_agenda_item(item: dict) -> str:
 
     record = {
         "item_id": item_id,
+        "_type": "agenda_item",
         "meeting_id": item.get("meeting_id", ""),
         "title": item.get("title", ""),
         "topic": item.get("topic", "other"),
@@ -145,27 +152,55 @@ def get_agenda_items_for_meeting(meeting_id: str) -> list[dict]:
         raise DynamoDBError("query", table_name, str(e)) from e
 
 
-def scan_all_agenda_items(limit: int = 500) -> list[dict]:
-    """Scan all agenda items (for search). Use sparingly — full table scan."""
+def query_all_agenda_items(limit: int = 500) -> list[dict]:
+    """Query all agenda items via type-date GSI. Returns newest first."""
     table_name = settings.agenda_table
     try:
         table = _get_table(table_name)
         items = []
-        resp = table.scan(Limit=limit)
+        kwargs = {
+            "IndexName": "type-date-index",
+            "KeyConditionExpression": Key("_type").eq("agenda_item"),
+            "ScanIndexForward": False,
+            "Limit": limit,
+        }
+        resp = table.query(**kwargs)
         items.extend(resp.get("Items", []))
 
-        # Handle pagination
         while "LastEvaluatedKey" in resp and len(items) < limit:
-            resp = table.scan(
-                ExclusiveStartKey=resp["LastEvaluatedKey"],
-                Limit=limit - len(items),
-            )
+            kwargs["ExclusiveStartKey"] = resp["LastEvaluatedKey"]
+            kwargs["Limit"] = limit - len(items)
+            resp = table.query(**kwargs)
             items.extend(resp.get("Items", []))
 
         return items
     except (ClientError, BotoCoreError) as e:
-        logger.error("Failed to scan agenda items: %s", e)
-        raise DynamoDBError("scan", table_name, str(e)) from e
+        logger.error("Failed to query agenda items: %s", e)
+        raise DynamoDBError("query", table_name, str(e)) from e
+
+
+def query_agenda_items_by_topic(topic: str, limit: int = 200) -> list[dict]:
+    """Query agenda items by topic via topic-date GSI. Returns newest first."""
+    table_name = settings.agenda_table
+    try:
+        table = _get_table(table_name)
+        resp = table.query(
+            IndexName="topic-date-index",
+            KeyConditionExpression=Key("topic").eq(topic),
+            ScanIndexForward=False,
+            Limit=limit,
+        )
+        return resp.get("Items", [])
+    except (ClientError, BotoCoreError) as e:
+        logger.error("Failed to query agenda items by topic %s: %s", topic, e)
+        raise DynamoDBError("query", table_name, str(e)) from e
+
+
+# Keep backward compat alias — but warn if called
+def scan_all_agenda_items(limit: int = 500) -> list[dict]:
+    """DEPRECATED: Use query_all_agenda_items instead."""
+    logger.warning("scan_all_agenda_items is deprecated — use query_all_agenda_items")
+    return query_all_agenda_items(limit=limit)
 
 
 # --- Documents ---

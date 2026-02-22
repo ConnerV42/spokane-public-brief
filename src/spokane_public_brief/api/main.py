@@ -14,7 +14,8 @@ from spokane_public_brief.models.dynamodb import (
     list_meetings,
     get_meeting,
     get_agenda_items_for_meeting,
-    scan_all_agenda_items,
+    query_all_agenda_items,
+    query_agenda_items_by_topic,
 )
 from spokane_public_brief import search as item_search
 
@@ -93,14 +94,15 @@ def api_items(
 ):
     """List agenda items with optional filters."""
     try:
-        items = scan_all_agenda_items(limit=500)
+        if topic:
+            items = query_agenda_items_by_topic(topic, limit=500)
+        else:
+            items = query_all_agenda_items(limit=500)
     except DynamoDBError as e:
-        logger.error("Failed to scan agenda items: %s", e)
+        logger.error("Failed to query agenda items: %s", e)
         raise HTTPException(status_code=502, detail="Failed to retrieve items from database")
 
-    # Filter
-    if topic:
-        items = [i for i in items if i.get("topic") == topic]
+    # Filter by relevance (post-query — relevance isn't a sort key)
     if min_relevance > 1:
         items = [i for i in items if int(i.get("relevance", 1)) >= min_relevance]
 
@@ -141,7 +143,7 @@ def api_search(q: str = Query(...), limit: int = Query(default=10, le=50)):
 def api_stats():
     """Dashboard stats."""
     try:
-        items = scan_all_agenda_items(limit=1000)
+        items = query_all_agenda_items(limit=1000)
         meetings = list_meetings(limit=500)
     except DynamoDBError as e:
         logger.error("Failed to get stats: %s", e)

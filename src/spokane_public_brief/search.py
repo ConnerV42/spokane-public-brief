@@ -1,7 +1,7 @@
 """Simple search over DynamoDB agenda items.
 
-For the small dataset (~373 items), we scan all items and do keyword/relevance
-matching in-memory. No external vector DB needed.
+Queries all items via the type-date GSI and does keyword/relevance matching
+in-memory. No external vector DB needed.
 
 For a future upgrade: store embeddings as a list[float] attribute in DynamoDB
 and compute cosine similarity in Lambda.
@@ -9,7 +9,7 @@ and compute cosine similarity in Lambda.
 
 from typing import Optional
 
-from spokane_public_brief.models.dynamodb import scan_all_agenda_items
+from spokane_public_brief.models.dynamodb import query_all_agenda_items
 
 
 def _score_item(item: dict, query: str) -> float:
@@ -52,7 +52,7 @@ def search(query: str, top_k: int = 10, min_score: float = 0.1) -> list[dict]:
 
     Scans DynamoDB and scores in-memory. Fine for ~400 items.
     """
-    items = scan_all_agenda_items(limit=1000)
+    items = query_all_agenda_items(limit=1000)
 
     scored = []
     for item in items:
@@ -68,7 +68,7 @@ def search(query: str, top_k: int = 10, min_score: float = 0.1) -> list[dict]:
 
 def get_stats() -> dict:
     """Get search stats."""
-    items = scan_all_agenda_items(limit=1000)
+    items = query_all_agenda_items(limit=1000)
     return {
         "total_items": len(items),
         "search_method": "keyword_scan",

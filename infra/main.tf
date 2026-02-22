@@ -51,9 +51,23 @@ resource "aws_dynamodb_table" "meetings" {
     type = "S"
   }
 
+  attribute {
+    name = "_type"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "body-date-index"
     hash_key        = "body_name"
+    range_key       = "meeting_date"
+    projection_type = "ALL"
+  }
+
+  # Enables listing all meetings sorted by date without a scan.
+  # All meetings share _type="meeting" as a fixed partition key.
+  global_secondary_index {
+    name            = "type-date-index"
+    hash_key        = "_type"
     range_key       = "meeting_date"
     projection_type = "ALL"
   }
@@ -74,9 +88,41 @@ resource "aws_dynamodb_table" "agenda_items" {
     type = "S"
   }
 
+  attribute {
+    name = "_type"
+    type = "S"
+  }
+
+  attribute {
+    name = "meeting_date"
+    type = "S"
+  }
+
+  attribute {
+    name = "topic"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "meeting-index"
     hash_key        = "meeting_id"
+    projection_type = "ALL"
+  }
+
+  # Enables listing all items sorted by date without a scan.
+  # All items share _type="agenda_item" as a fixed partition key.
+  global_secondary_index {
+    name            = "type-date-index"
+    hash_key        = "_type"
+    range_key       = "meeting_date"
+    projection_type = "ALL"
+  }
+
+  # Enables querying items by topic sorted by date.
+  global_secondary_index {
+    name            = "topic-date-index"
+    hash_key        = "topic"
+    range_key       = "meeting_date"
     projection_type = "ALL"
   }
 }
@@ -138,7 +184,7 @@ resource "aws_iam_role" "lambda_role" {
       Version = "2012-10-17"
       Statement = [{
         Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:DeleteItem"]
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:DeleteItem"]
         Resource = [
           aws_dynamodb_table.meetings.arn,
           "${aws_dynamodb_table.meetings.arn}/index/*",
